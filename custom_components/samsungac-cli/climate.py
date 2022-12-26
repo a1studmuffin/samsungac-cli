@@ -208,7 +208,7 @@ class SamsungACCLIClimate(ClimateEntity):
         if self._switch_state == 'on':
             self.run_smartthings_command(f'thermostatCoolingSetpoint:setCoolingSetpoint({self._target_temp})')
 
-    async def async_set_hvac_mode(self, **kwargs) -> None
+    async def async_set_hvac_mode(self, **kwargs) -> None:
         hvac_mode = kwargs.get(ATTR_HVAC_MODE)
         if hvac_mode is None:
             return
@@ -233,7 +233,7 @@ class SamsungACCLIClimate(ClimateEntity):
                 self.run_smartthings_command(f'thermostatCoolingSetpoint:setCoolingSetpoint({self._target_temp})')
                 self.run_smartthings_command(f'airConditionerFanMode:setAirConditionerFanMode({self._current_fan_mode})')
 
-    async def async_set_fan_mode(self, **kwargs) -> None
+    async def async_set_fan_mode(self, **kwargs) -> None:
         fan_mode = kwargs.get(ATTR_FAN_MODE)
         if fan_mode is None:
             return
