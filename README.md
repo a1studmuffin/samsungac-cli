@@ -12,7 +12,7 @@ Tested using a Samsung MIM-H04AN wifi kit with air conditioner model AC160JNHFKH
    ```
    wget -c https://github.com/SmartThingsCommunity/smartthings-cli/releases/download/%40smartthings%2Fcli%401.0.1/smartthings-linuxstatic-armv7.tar.gz -O - | tar -xz -C /usr/local/bin/
    ```
-   This will download an extract the `smartthings` binary to `/usr/local/bin/smartthings`.
+   This will download and extract the `smartthings` binary to `/usr/local/bin/smartthings`.
 
 ## Configuration
 
