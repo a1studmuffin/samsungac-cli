@@ -142,6 +142,10 @@ class SamsungACCLIClimate(ClimateEntity):
         return self._target_temp
 
     @property
+    def target_temperature_step(self):
+        return 1.0
+
+    @property
     def fan_mode(self):
         return self._fan_mode
 
@@ -252,7 +256,7 @@ class SamsungACCLIClimate(ClimateEntity):
         self._target_temp = target_temp
         if self._switch_state == "on":
             self.run_smartthings_command(
-                f"thermostatCoolingSetpoint:setCoolingSetpoint({self._target_temp})"
+                f"thermostatCoolingSetpoint:setCoolingSetpoint({int(self._target_temp)})"
             )
 
         self.schedule_update_ha_state(True)
@@ -282,7 +286,7 @@ class SamsungACCLIClimate(ClimateEntity):
             # also update properties that may have changed while the unit was off
             if prev_switch_state != self._switch_state:
                 self.run_smartthings_command(
-                    f"thermostatCoolingSetpoint:setCoolingSetpoint({self._target_temp})"
+                    f"thermostatCoolingSetpoint:setCoolingSetpoint({int(self._target_temp)})"
                 )
                 self.run_smartthings_command(
                     f"airConditionerFanMode:setAirConditionerFanMode({self._current_fan_mode})"
