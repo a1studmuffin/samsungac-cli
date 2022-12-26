@@ -207,7 +207,7 @@ class SamsungACCLIClimate(ClimateEntity):
 
             self._current_fan_mode = device_status_json["components"]["main"][
                 "airConditionerFanMode"
-            ]["mode"]["value"]
+            ]["fanMode"]["value"]
             if self._current_fan_mode == "auto":
                 self._fan_mode = FAN_AUTO
             elif self.current_mode == "low":
