@@ -80,6 +80,7 @@ class SamsungACCLIClimate(ClimateEntity):
         self._device_id = device_id
         self._smartthings_path = smartthings_path
         self._current_mode = None
+        self._current_fan_mode = None
         self._switch_state = None
         self._min_temp = 0
         self._max_temp = 0
@@ -89,6 +90,7 @@ class SamsungACCLIClimate(ClimateEntity):
         self._action = None
         self._fan_mode = None
         self._available = False
+        self._attributes = {}
 
     @property
     def name(self) -> str:
@@ -107,11 +109,11 @@ class SamsungACCLIClimate(ClimateEntity):
         return self._mode
 
     @property
-    def hvac_action(self):
+    def hvac_action(self) -> str:
         return self._action
 
     @property
-    def hvac_modes(self):
+    def hvac_modes(self) -> list:
         return [
             HVAC_MODE_AUTO,
             HVAC_MODE_COOL,
@@ -122,71 +124,88 @@ class SamsungACCLIClimate(ClimateEntity):
         ]
 
     @property
-    def min_temp(self):
+    def min_temp(self) -> float:
         return self._min_temp
 
     @property
-    def max_temp(self):
+    def max_temp(self) -> float:
         return self._max_temp
 
     @property
-    def temperature_unit(self):
+    def temperature_unit(self) -> str:
         return TEMP_CELSIUS
 
     @property
-    def current_temperature(self):
+    def current_temperature(self) -> float:
         return self._current_temp
 
     @property
-    def target_temperature(self):
+    def target_temperature(self) -> float:
         return self._target_temp
 
     @property
-    def target_temperature_step(self):
+    def target_temperature_step(self) -> float:
         return 1.0
 
     @property
-    def fan_mode(self):
+    def fan_mode(self) -> str:
         return self._fan_mode
 
     @property
-    def fan_modes(self):
+    def fan_modes(self) -> list:
         return [FAN_AUTO, FAN_LOW, FAN_MEDIUM, FAN_HIGH]
+
+    @property
+    def extra_state_attributes(self) -> int:
+        return self._attributes
 
     def run_smartthings_command(self, command, arguments):
         try:
-            arguments = f"'{arguments}'" if arguments else ""
             smartthings_command = f"{self._smartthings_path} {command} {self._device_id} {arguments} -j --token {self._access_token}"
             _LOGGER.debug(smartthings_command)
             result = subprocess.run(
                 smartthings_command.split(), capture_output=True, text=True
             )
             _LOGGER.debug(result.stdout)
-            return json.loads(result.stdout) if result.stdout else None
+            _LOGGER.debug(result.stderr)
+            return result.stdout
         except Exception as e:
             _LOGGER.debug(f"run_smartthings_command() failed: {str(e)}")
             return ""
 
     async def async_update(self):
-
-        device_status_json = self.run_smartthings_command("devices:status", "")
+        device_status_text = self.run_smartthings_command("devices:status", "")
         try:
-            self._available = True
+            device_status_json = json.loads(device_status_text)
 
             self._min_temp = device_status_json["components"]["main"][
                 "custom.thermostatSetpointControl"
             ]["minimumSetpoint"][
                 "value"
             ]  # just assume celcius here
+
             self._max_temp = device_status_json["components"]["main"][
                 "custom.thermostatSetpointControl"
             ]["maximumSetpoint"][
                 "value"
             ]  # just assume celcius here
 
+            self._current_temp = int(
+                device_status_json["components"]["main"]["temperatureMeasurement"][
+                    "temperature"
+                ]["value"]
+            )
+
+            self._target_temp = int(
+                device_status_json["components"]["main"]["thermostatCoolingSetpoint"][
+                    "coolingSetpoint"
+                ]["value"]
+            )
+
             self._current_mode = device_status_json["components"]["main"][
                 "airConditionerMode"
             ]["airConditionerMode"]["value"]
+
             self._switch_state = device_status_json["components"]["main"]["switch"][
                 "switch"
             ]["value"]
@@ -194,11 +213,21 @@ class SamsungACCLIClimate(ClimateEntity):
                 self._action = CURRENT_HVAC_OFF
                 self._mode = HVAC_MODE_OFF
             elif self._current_mode == "auto":
-                self._action = CURRENT_HVAC_IDLE
+                if (
+                    self._target_temp > self._current_temp + 1
+                ):  # todo - can we get real hvac action here rather than faking it?
+                    self._action = CURRENT_HVAC_HEAT
+                elif self._target_temp < self._current_temp - 1:
+                    self._action = CURRENT_HVAC_COOL
+                else:
+                    self._action = CURRENT_HVAC_IDLE
                 self._mode = HVAC_MODE_AUTO
             elif self._current_mode == "cool":
                 self._action = CURRENT_HVAC_COOL
                 self._mode = HVAC_MODE_COOL
+            elif self._current_mode == "heat":
+                self._action = CURRENT_HVAC_HEAT
+                self._mode = HVAC_MODE_HEAT
             elif self._current_mode == "dry":
                 self._action = CURRENT_HVAC_DRY
                 self._mode = HVAC_MODE_DRY
@@ -215,51 +244,48 @@ class SamsungACCLIClimate(ClimateEntity):
             ]["fanMode"]["value"]
             if self._current_fan_mode == "auto":
                 self._fan_mode = FAN_AUTO
-            elif self.current_mode == "low":
+            elif self._current_fan_mode == "low":
                 self._fan_mode = FAN_LOW
-            elif self.current_mode == "medium":
+            elif self._current_fan_mode == "medium":
                 self._fan_mode = FAN_MEDIUM
-            elif self.current_mode == "high":
+            elif self._current_fan_mode == "high":
                 self._fan_mode = FAN_HIGH
             else:
                 self._fan_mode = FAN_OFF
-                _LOGGER.debug(f"Unknown fan mode: {str(self._fan_mode)}")
+                _LOGGER.debug(f"Unknown fan mode: {str(self._current_fan_mode)}")
 
-            self._current_temp = device_status_json["components"]["main"][
-                "temperatureMeasurement"
-            ]["temperature"][
-                "value"
-            ]  # just assume celcius here
-            self._target_temp = device_status_json["components"]["main"][
-                "thermostatCoolingSetpoint"
-            ]["coolingSetpoint"][
-                "value"
-            ]  # just assume celcius here
-            self._power_consumption = device_status_json["components"]["main"][
-                "powerConsumptionReport"
-            ]["powerConsumption"]["value"]["power"]
+            current_power = (
+                device_status_json["components"]["main"]["powerConsumptionReport"][
+                    "powerConsumption"
+                ]["value"]["power"]
+                * 1000
+            )  # kW to W
+
+            self._attributes = {"current_power": current_power}
+
+            self._available = True
 
             _LOGGER.debug(
-                f"State update complete, Target temp: {self._target_temp}; Current temp: {self._current_temp}; Min temp: {self._min_temp}; Max temp: {self._max_temp}; Current mode: {self._current_mode}; Switch state: {self._switch_state}; Current fan mode: {self._current_fan_mode}; Power consumption: {self._power_consumption};"
+                f"State update complete, Target temp: {self._target_temp}; Current temp: {self._current_temp}; Min temp: {self._min_temp}; Max temp: {self._max_temp}; Current mode: {self._current_mode}; Switch state: {self._switch_state}; Current fan mode: {self._current_fan_mode}; Current power: {current_power};"
             )
 
         except Exception as e:
+            self._available = False
             _LOGGER.debug(
                 f"State update failed to parse json, setting to unavailable: {str(e)}"
             )
-            self._available = False
 
     async def async_set_temperature(self, **kwargs) -> None:
         target_temp = kwargs.get(ATTR_TEMPERATURE)
         if target_temp is None:
             return
 
-        self._target_temp = target_temp
-        if self._switch_state == "on":
-            self.run_smartthings_command(
-                "devices:commands",
-                f"thermostatCoolingSetpoint:setCoolingSetpoint({int(self._target_temp)})",
-            )
+        _LOGGER.debug(f"async_set_temperature({target_temp})")
+
+        self.run_smartthings_command(
+            "devices:commands",
+            f"thermostatCoolingSetpoint:setCoolingSetpoint({int(target_temp)})",
+        )
 
         self.schedule_update_ha_state(True)
 
@@ -268,36 +294,33 @@ class SamsungACCLIClimate(ClimateEntity):
         if hvac_mode is None:
             return
 
-        self._current_mode = hvac_mode
-        if self._current_mode == "fan_only":
-            self._current_mode = "wind"
+        _LOGGER.debug(f"async_set_hvac_mode({hvac_mode})")
+
+        if hvac_mode == "fan_only":
+            hvac_mode = "wind"
 
         # Update switch state from current hvac mode
-        prev_switch_state = self._switch_state
-        self._switch_state = "off" if self._current_mode == "off" else "on"
-        if prev_switch_state != self._switch_state:
-            self.run_smartthings_command(
-                "devices:commands", f"switch:{self._switch_state}()"
-            )
+        switch_state = "off" if hvac_mode == "off" else "on"
+        self.run_smartthings_command("devices:commands", f"switch:{switch_state}()")
 
-        if self._switch_state == "on":
-
-            # Update AC mode if the unit is switched on on
+        if switch_state == "on":
             self.run_smartthings_command(
                 "devices:commands",
-                f"airConditionerMode:setAirConditionerMode({self._current_mode})",
+                f'airConditionerMode:setAirConditionerMode("{hvac_mode}")',
             )
 
             # also update properties that may have changed while the unit was off
-            if prev_switch_state != self._switch_state:
-                self.run_smartthings_command(
-                    "devices:commands",
-                    f"thermostatCoolingSetpoint:setCoolingSetpoint({int(self._target_temp)})",
-                )
-                self.run_smartthings_command(
-                    "devices:commands",
-                    f"airConditionerFanMode:setAirConditionerFanMode({self._current_fan_mode})",
-                )
+            # if self._target_temp:
+            #     self.run_smartthings_command(
+            #         "devices:commands",
+            #         f"thermostatCoolingSetpoint:setCoolingSetpoint({int(self._target_temp)})",
+            #     )
+
+            # if self._current_fan_mode:
+            #     self.run_smartthings_command(
+            #         "devices:commands",
+            #         f'airConditionerFanMode:setFanMode("{self._current_fan_mode}")',
+            #     )
 
         self.schedule_update_ha_state(True)
 
@@ -306,14 +329,15 @@ class SamsungACCLIClimate(ClimateEntity):
         if fan_mode is None:
             return
 
-        self._current_fan_mode = fan_mode
+        _LOGGER.debug(f"async_set_fan_mode({fan_mode})")
 
         if self._switch_state == "on":
-
-            # Update AC fan mode if the unit is switched on on
             self.run_smartthings_command(
                 "devices:commands",
-                f"airConditionerFanMode:setAirConditionerFanMode({self._current_fan_mode})",
+                f'airConditionerFanMode:setFanMode("{fan_mode}")',
             )
 
+        self.schedule_update_ha_state(True)
+
+    async def async_added_to_hass(self):
         self.schedule_update_ha_state(True)
