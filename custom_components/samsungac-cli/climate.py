@@ -162,9 +162,9 @@ class SamsungACCLIClimate(ClimateEntity):
                 smartthings_command.split(), capture_output=True, text=True
             )
             _LOGGER.debug(result.stdout)
-            return json.loads(result.stdout)
+            return json.loads(result.stdout) if result.stdout else None
         except Exception as e:
-            _LOGGER.debug(f"run_smartthings_command() failed: {repr(e)}")
+            _LOGGER.debug(f"run_smartthings_command() failed: {str(e)}")
             return ""
 
     async def async_update(self):
