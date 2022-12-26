@@ -1,6 +1,7 @@
 {
     "domain": "samsungac-cli",
     "name": "SamsungAC SmartThings CLI",
+    "version": "0.0.1",
     "integration_type": "hub",
     "documentation": "https://github.com/a1studmuffin/samsungac-cli",
     "dependencies": [],
