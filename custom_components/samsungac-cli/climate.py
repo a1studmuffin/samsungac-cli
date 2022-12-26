@@ -232,8 +232,8 @@ class SamsungACCLIClimate(ClimateEntity):
             ]  # just assume celcius here
             self._power_consumption = device_status_json["components"]["main"][
                 "powerConsumptionReport"
-            ]["powerConsumption"][
-                "power"
+            ]["powerConsumption"]["power"]
+                "value"
             ]  # just assume celcius here
 
             _LOGGER.debug(
