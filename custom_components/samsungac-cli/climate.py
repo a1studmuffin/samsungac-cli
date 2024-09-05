@@ -3,39 +3,26 @@ import logging
 import subprocess
 import voluptuous
 import homeassistant.helpers.config_validation as cv
+from homeassistant.const import UnitOfTemperature
 from homeassistant.components import climate
-from homeassistant.components.climate import ClimateEntity, PLATFORM_SCHEMA
-from homeassistant.components.climate.const import (
-    SUPPORT_TARGET_TEMPERATURE,
-    SUPPORT_FAN_MODE,
+from homeassistant.components.climate import ClimateEntity, ClimateEntityFeature, HVACMode, HVACAction, PLATFORM_SCHEMA
+from homeassistant.components.climate import (
     ATTR_HVAC_MODE,
     ATTR_FAN_MODE,
-    HVAC_MODE_AUTO,
-    HVAC_MODE_COOL,
-    HVAC_MODE_DRY,
-    HVAC_MODE_FAN_ONLY,
-    HVAC_MODE_HEAT,
-    HVAC_MODE_OFF,
     FAN_AUTO,
     FAN_LOW,
     FAN_MEDIUM,
     FAN_HIGH,
     FAN_OFF,
-    CURRENT_HVAC_OFF,
-    CURRENT_HVAC_HEAT,
-    CURRENT_HVAC_COOL,
-    CURRENT_HVAC_DRY,
-    CURRENT_HVAC_IDLE,
-    CURRENT_HVAC_FAN,
 )
 from homeassistant.const import (
     ATTR_TEMPERATURE,
     CONF_NAME,
     CONF_ACCESS_TOKEN,
     CONF_DEVICE_ID,
-    TEMP_CELSIUS,
 )
-from homeassistant.helpers.typing import HomeAssistantType, ConfigType
+from homeassistant.helpers.typing import ConfigType
+from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,7 +44,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 
 
 async def async_setup_platform(
-    hass: HomeAssistantType, config: ConfigType, async_add_entities, discovery_info=None
+    hass: HomeAssistant, config: ConfigType, async_add_entities, discovery_info=None
 ) -> None:
     async_add_entities(
         [
@@ -102,7 +89,7 @@ class SamsungACCLIClimate(ClimateEntity):
 
     @property
     def supported_features(self) -> int:
-        return SUPPORT_TARGET_TEMPERATURE | SUPPORT_FAN_MODE
+        return ClimateEntityFeature.TURN_ON | ClimateEntityFeature.TURN_OFF | ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.FAN_MODE
 
     @property
     def hvac_mode(self):
@@ -115,12 +102,12 @@ class SamsungACCLIClimate(ClimateEntity):
     @property
     def hvac_modes(self) -> list:
         return [
-            HVAC_MODE_AUTO,
-            HVAC_MODE_COOL,
-            HVAC_MODE_DRY,
-            HVAC_MODE_FAN_ONLY,
-            HVAC_MODE_HEAT,
-            HVAC_MODE_OFF,
+            HVACMode.AUTO,
+            HVACMode.COOL,
+            HVACMode.DRY,
+            HVACMode.FAN_ONLY,
+            HVACMode.HEAT,
+            HVACMode.OFF,
         ]
 
     @property
@@ -133,7 +120,7 @@ class SamsungACCLIClimate(ClimateEntity):
 
     @property
     def temperature_unit(self) -> str:
-        return TEMP_CELSIUS
+        return UnitOfTemperature.CELSIUS
 
     @property
     def current_temperature(self) -> float:
@@ -210,33 +197,33 @@ class SamsungACCLIClimate(ClimateEntity):
                 "switch"
             ]["value"]
             if self._switch_state == "off":
-                self._action = CURRENT_HVAC_OFF
-                self._mode = HVAC_MODE_OFF
+                self._action = HVACAction.OFF
+                self._mode = HVACMode.OFF
             elif self._current_mode == "auto":
                 if (
                     self._target_temp > self._current_temp + 1
                 ):  # todo - can we get real hvac action here rather than faking it?
-                    self._action = CURRENT_HVAC_HEAT
+                    self._action = HVACAction.HEATING
                 elif self._target_temp < self._current_temp - 1:
-                    self._action = CURRENT_HVAC_COOL
+                    self._action = HVACAction.COOLING
                 else:
-                    self._action = CURRENT_HVAC_IDLE
-                self._mode = HVAC_MODE_AUTO
+                    self._action = HVACAction.IDLE
+                self._mode = HVACMode.AUTO
             elif self._current_mode == "cool":
-                self._action = CURRENT_HVAC_COOL
-                self._mode = HVAC_MODE_COOL
+                self._action = HVACAction.COOLING
+                self._mode = HVACMode.COOL
             elif self._current_mode == "heat":
-                self._action = CURRENT_HVAC_HEAT
-                self._mode = HVAC_MODE_HEAT
+                self._action = HVACAction.HEATING
+                self._mode = HVACMode.HEAT
             elif self._current_mode == "dry":
-                self._action = CURRENT_HVAC_DRY
-                self._mode = HVAC_MODE_DRY
+                self._action = HVACAction.DRYING
+                self._mode = HVACMode.DRY
             elif self._current_mode == "wind":
-                self._action = CURRENT_HVAC_FAN
-                self._mode = HVAC_MODE_FAN_ONLY
+                self._action = HVACAction.FAN
+                self._mode = HVACMode.FAN_ONLY
             else:
-                self._action = CURRENT_HVAC_OFF
-                self._mode = HVAC_MODE_OFF
+                self._action = HVACAction.OFF
+                self._mode = HVACMode.OFF
                 _LOGGER.debug(f"Unknown HVAC current mode: {str(self._current_mode)}")
 
             self._current_fan_mode = device_status_json["components"]["main"][
@@ -260,6 +247,8 @@ class SamsungACCLIClimate(ClimateEntity):
                 ]["value"]["power"]
                 * 1000
             )  # kW to W
+            if self._mode == HVACMode.OFF:
+                current_power = 0
 
             self._attributes = {"current_power": current_power}
 
@@ -324,8 +313,7 @@ class SamsungACCLIClimate(ClimateEntity):
 
         self.schedule_update_ha_state(True)
 
-    async def async_set_fan_mode(self, **kwargs) -> None:
-        fan_mode = kwargs.get(ATTR_FAN_MODE)
+    async def async_set_fan_mode(self, fan_mode: str) -> None:
         if fan_mode is None:
             return
 
