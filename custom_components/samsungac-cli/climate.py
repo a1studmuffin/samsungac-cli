@@ -278,14 +278,10 @@ class SamsungACCLIClimate(ClimateEntity):
 
         self.schedule_update_ha_state(True)
 
-    async def async_set_hvac_mode(self, **kwargs) -> None:
-        hvac_mode = kwargs.get(ATTR_HVAC_MODE)
-        if hvac_mode is None:
-            return
-
+    async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         _LOGGER.debug(f"async_set_hvac_mode({hvac_mode})")
 
-        if hvac_mode == "fan_only":
+        if hvac_mode == HVACMode.FAN_ONLY:
             hvac_mode = "wind"
 
         # Update switch state from current hvac mode
